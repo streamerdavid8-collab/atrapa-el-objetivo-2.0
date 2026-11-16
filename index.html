@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Atrapa el objetivo</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #000; --wall: #2121ff; --yellow: #ffe600; --text: #fff; --muted: #9aa0ff;
+    --pink: #ffb8ff; --cyan: #00ffff; --dot: #ffb8ae; --red: #ff3b3b;
+    --font: "Courier New", ui-monospace, monospace;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  * { box-sizing: border-box; }
+  html { min-height: 100%; background: var(--bg); }
+  body {
+    margin: 0; min-height: 100vh; color: var(--text); background: transparent; padding: 62px 16px 16px;
+    font-family: var(--font); font-size: 13px; font-weight: 700; line-height: 1.6;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  body::before {
+    content: ""; position: fixed; inset: 0; z-index: -1; opacity: .09; pointer-events: none;
+    background: radial-gradient(var(--dot) 2px, transparent 2.5px) 0 0 / 40px 40px; animation: drift 6s linear infinite;
+  }
+  @keyframes drift { to { background-position: 40px 40px; } }
+  h1 { color: var(--yellow); font-size: 1.5rem; margin: 10px 0 8px; text-align: center; line-height: 1.4; animation: glow 1.4s ease-in-out infinite alternate; }
+  @keyframes glow { from { text-shadow: 3px 3px 0 var(--wall); } to { text-shadow: 3px 3px 0 var(--wall), 0 0 18px var(--yellow); } }
+  h2 { color: var(--yellow); margin: 0 0 14px; font-size: 1rem; line-height: 1.5; }
+  .blink { color: var(--pink); margin: 0 0 12px; font-size: .7rem; animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: .2; } }
+  .pac {
+    display: inline-block; width: 1.4em; height: 1.4em; border-radius: 50%; vertical-align: middle;
+    background: conic-gradient(var(--yellow) 0 50deg, transparent 50deg 130deg, var(--yellow) 130deg 360deg);
+    animation: chomp .4s steps(1) infinite;
+  }
+  @keyframes chomp { 50% { background: conic-gradient(var(--yellow) 0 80deg, transparent 80deg 100deg, var(--yellow) 100deg 360deg); } }
+  .lane { position: relative; width: 100%; max-width: 560px; height: 34px; overflow: hidden; margin-bottom: 14px; border-bottom: 6px dotted var(--dot); }
+  .lane > * { position: absolute; top: 2px; left: -40px; width: 26px; height: 26px; animation: run 7s linear infinite; }
+  .lane .pac { animation: run 7s linear infinite, chomp .4s steps(1) infinite; }
+  .lane .g1 { animation-delay: .7s; background: #ff0000; }
+  .lane .g2 { animation-delay: 1.2s; background: #ffb8ff; }
+  .lane .g3 { animation-delay: 1.7s; background: #00ffff; }
+  @keyframes run { from { left: -40px; } to { left: 105%; } }
+
+  /* fantasma: forma, ojos, animación */
+  .tgt, .ghost {
+    clip-path: polygon(0 100%, 0 45%, 8% 25%, 22% 8%, 50% 0, 78% 8%, 92% 25%, 100% 45%, 100% 100%, 83% 85%, 67% 100%, 50% 85%, 33% 100%, 17% 85%);
+  }
+  .tgt::before, .ghost::before {
+    content: ""; position: absolute; left: 0; top: 20%; width: 100%; height: 32%;
+    background:
+      radial-gradient(circle at 36% 54%, var(--wall) 0 7%, transparent 8%),
+      radial-gradient(circle at 76% 54%, var(--wall) 0 7%, transparent 8%),
+      radial-gradient(circle at 32% 50%, #fff 0 15%, transparent 16%),
+      radial-gradient(circle at 72% 50%, #fff 0 15%, transparent 16%);
+  }
+  .tgt {
+    position: absolute; width: 56px; height: 56px; border: 0; padding: 0 0 14% 0; border-radius: 0;
+    display: flex; align-items: flex-end; justify-content: center; color: #fff; font-family: var(--font); line-height: 1;
+    text-shadow: 2px 2px 0 rgba(0, 0, 0, .7);
+    animation: pop .18s ease-out, bob .7s ease-in-out .18s infinite;
+  }
+  @keyframes pop { from { scale: 0; } to { scale: 1; } }
+  @keyframes bob { 0%, 100% { translate: 0 0; } 50% { translate: 0 -5px; } }
+  .tgt.dying { animation: blink .22s steps(1) infinite; }
+  #target { cursor: pointer; }
+  #target:active { scale: .85; }
+  #btarget { pointer-events: none; }
+  #btarget.hit { scale: 1.35; filter: brightness(1.8); }
+  .fx { position: absolute; z-index: 3; pointer-events: none; font-size: .85rem; text-shadow: 2px 2px 0 #000; animation: rise .7s forwards; }
+  @keyframes rise { from { opacity: 1; translate: -50% 0; } to { opacity: 0; translate: -50% -46px; } }
+
+  .dots { display: none; }
+  .screen { display: none; width: 100%; max-width: 560px; }
+  .screen.on { display: block; animation: fadein .25s; }
+  @keyframes fadein { from { opacity: 0; translate: 0 8px; } to { opacity: 1; translate: 0 0; } }
+  .card { background: var(--bg); border: 4px solid var(--wall); border-radius: 14px; padding: 18px; box-shadow: inset 0 0 0 3px var(--bg), inset 0 0 0 5px var(--wall); }
+  .btn {
+    display: block; width: 100%; margin-bottom: 12px; padding: 14px 10px; border: 3px solid var(--wall);
+    border-radius: 8px; background: var(--bg); color: var(--yellow); font: inherit; font-size: 1rem; cursor: pointer;
+    transition: translate .12s, background .12s;
+  }
+  .btn:hover:not(:disabled), .btn:focus-visible { background: var(--wall); outline: none; translate: 6px 0; }
+  .btn:hover:not(:disabled)::before { content: "\25B6  "; }
+  .btn:disabled { opacity: .35; cursor: not-allowed; }
+  .btn.small { width: auto; margin: 0; padding: 10px 12px; font-size: .7rem; }
+  #menu .btn { animation: slide .4s both; }
+  #menu .btn:nth-child(1) { animation-delay: .05s; } #menu .btn:nth-child(2) { animation-delay: .12s; }
+  #menu .btn:nth-child(3) { animation-delay: .19s; } #menu .btn:nth-child(4) { animation-delay: .26s; }
+  #menu .btn:nth-child(5) { animation-delay: .33s; }
+  @keyframes slide { from { opacity: 0; translate: -40px 0; } to { opacity: 1; translate: 0 0; } }
+  label { display: flex; flex-direction: column; gap: 8px; color: var(--muted); margin-bottom: 14px; }
+  input[type=text], select {
+    padding: 10px; border: 3px solid var(--wall); border-radius: 8px; background: var(--bg);
+    color: var(--yellow); font: inherit; font-size: .85rem;
+  }
+  input:focus, select:focus { outline: none; border-color: var(--yellow); }
+  input[type=range] { width: 100%; accent-color: var(--yellow); }
+  input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--yellow); }
+  .row { display: flex; align-items: center; justify-content: space-between; flex-direction: row; }
+  .top { display: flex; gap: 8px; align-items: center; justify-content: space-between; margin-bottom: 10px; flex-wrap: wrap; }
+  .stat { border: 3px solid var(--yellow); border-radius: 8px; padding: 6px 12px; text-align: center; }
+  .stat small { display: block; color: var(--muted); font-size: .55rem; }
+  .stat b { font-size: 1.1rem; color: var(--yellow); }
+  .hint { margin: 0 0 10px; font-size: .55rem; color: var(--muted); }
+  .arenas { display: grid; grid-template-columns: 1fr; gap: 10px; }
+  .arenas.two { grid-template-columns: 1fr 1fr; }
+  .lab { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: .65rem; gap: 6px; }
+  .lab span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lab b { font-size: 1.2rem; color: var(--yellow); }
+  .arena {
+    position: relative; width: 100%; height: 320px; overflow: hidden; touch-action: manipulation;
+    background: var(--bg) radial-gradient(var(--dot) 2px, transparent 2.5px) 0 0 / 30px 30px;
+    border: 4px solid var(--wall); border-radius: 14px; box-shadow: 0 0 14px rgba(33, 33, 255, .7);
+  }
+  #botcol .arena { border-color: var(--pink); box-shadow: 0 0 14px rgba(255, 184, 255, .6); }
+  .arenas.adr #arena { border-color: var(--yellow); box-shadow: 0 0 24px var(--yellow); }
+  .arenas.stopped #botcol .arena { filter: grayscale(1); border-color: var(--cyan); }
+  .arenas.stopped #botcol .arena::after { content: "\23F1"; position: absolute; inset: 0; pointer-events: none; display: flex; align-items: center; justify-content: center; font-size: 4rem; background: rgba(0, 255, 255, .15); }
+  .arenas.stopped.nobot #arena { border-color: var(--cyan); }
+  .arenas.stopped.nobot #arena::after { content: "\23F1"; position: absolute; top: 6px; right: 10px; pointer-events: none; font-size: 2.2rem; }
+  .list { margin: 0; padding: 0; list-style: none; }
+  .list li { display: flex; gap: 6px; align-items: center; padding: 5px 0; font-size: .6rem; }
+  .pos { width: 22px; text-align: center; }
+  .who { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pts { color: var(--yellow); }
+  .empty, .muted { color: var(--muted); }
+  .center { text-align: center; }
+  .item { display: flex; gap: 10px; align-items: center; border: 3px solid var(--wall); border-radius: 10px; padding: 10px; margin-bottom: 10px; }
+  .item .ico { font-size: 1.8rem; }
+  .item .info { flex: 1; }
+  .item small { display: block; color: var(--muted); font-size: .55rem; margin-top: 4px; }
+  .item .btn { width: auto; margin: 0; padding: 10px; font-size: .7rem; }
+  #recBtn, #coinbar {
+    position: fixed; z-index: 6; top: calc(env(safe-area-inset-top, 0px) + 10px); height: 42px; background: var(--bg);
+  }
+  #recBtn { right: 10px; width: 42px; border: 3px solid var(--wall); border-radius: 50%; font-size: 1.1rem; cursor: pointer; padding: 0; }
+  #coinbar { left: 10px; padding: 0 12px; display: flex; align-items: center; gap: 6px; border: 3px solid var(--yellow); border-radius: 21px; color: var(--yellow); font-size: .8rem; }
+  #recs {
+    display: none; position: fixed; z-index: 5; right: 10px; top: calc(env(safe-area-inset-top, 0px) + 60px);
+    width: 215px; background: var(--bg); border: 3px solid var(--wall); border-radius: 12px; padding: 10px 12px;
+  }
+  #recs.open { display: block; }
+  #recs h3 { margin: 0 0 6px; font-size: .65rem; color: var(--yellow); }
+  .tgt { z-index: 2; }
+  .deco { position: absolute; z-index: 0; pointer-events: none; opacity: .4; font-size: 1.5rem; animation: sway 2.6s ease-in-out infinite alternate; }
+  @keyframes sway { to { translate: 0 -8px; } }
+  * { -webkit-tap-highlight-color: transparent; }
+  body { -webkit-user-select: none; user-select: none; overscroll-behavior: none; }
+  input[type=text] { -webkit-user-select: text; user-select: text; }
+  @media (max-width: 480px) {
+    .arena { height: 280px; }
+    h1 { font-size: 1.15rem; }
+    .top .btn.small { padding: 8px 8px; font-size: .6rem; }
+  }
+</style>
+</head>
+<body>
+  <button id="recBtn" aria-label="Récords">🏆</button>
+  <aside id="recs"><h3>🏆 RÉCORDS</h3><ol class="list" id="list"></ol></aside>
+  <div id="coinbar">🪙 <span id="coins">0</span></div>
+
+  <h1><span class="pac"></span> ATRAPA EL OBJETIVO</h1>
+  <div class="lane"><span class="pac"></span><i class="ghost g1"></i><i class="ghost g2"></i><i class="ghost g3"></i></div>
+
+  <!-- MENÚ -->
+  <section id="menu" class="screen on">
+    <p class="blink center">▶ ELIGE UNA OPCIÓN</p>
+    <div class="card">
+      <button class="btn" id="bPlay">Jugar</button>
+      <button class="btn" id="bCont">Continuar</button>
+      <button class="btn" id="bShop">Tienda</button>
+      <button class="btn" id="bOpt">Opciones</button>
+      <button class="btn" id="bExit" style="margin-bottom:0">Salir</button>
+    </div>
+  </section>
+
+  <!-- PREPARAR PARTIDA -->
+  <section id="setup" class="screen">
+    <div class="card">
+      <h2>Nueva partida</h2>
+      <label>Tu nombre<input type="text" id="player" maxlength="16" placeholder="Escribe tu nombre" autocomplete="off"></label>
+      <label>Modo
+        <select id="mode">
+          <option value="solo">Clásico (solo)</option>
+          <option value="bot">Contra el bot</option>
+          <option value="multi">Multijugador (2 jugadores)</option>
+          <option value="surv">Supervivencia</option>
+          <option value="att">Contrarreloj</option>
+          <option value="adv">Aventura (niveles)</option>
+        </select>
+      </label>
+      <p class="muted" id="modeinfo" style="margin:0 0 14px"></p>
+      <label id="advwrap" style="display:none">Nivel<select id="advlv"></select></label>
+      <label id="p2wrap" style="display:none">Nombre del jugador 2<input type="text" id="player2" maxlength="16" placeholder="Jugador 2" autocomplete="off"></label>
+      <label id="secwrap">Tiempo
+        <select id="secs">
+          <option value="15">15 segundos</option>
+          <option value="30" selected>30 segundos</option>
+          <option value="45">45 segundos</option>
+          <option value="60">60 segundos</option>
+        </select>
+      </label>
+      <label id="lvlwrap" style="display:none">Nivel del bot
+        <select id="level">
+          <option value="facil">Fácil</option>
+          <option value="normal" selected>Normal</option>
+          <option value="dificil">Difícil</option>
+        </select>
+      </label>
+      <p class="muted" style="margin:0 0 14px">Fantasma grande = 5 · mediano = 3 · pequeño = 1</p>
+      <button class="btn" id="bGo">¡Empezar!</button>
+      <button class="btn" id="bBack1" style="margin-bottom:0">Atrás</button>
+    </div>
+  </section>
+
+  <!-- JUEGO -->
+  <section id="game" class="screen">
+    <div class="top">
+      <div class="stat" id="timebox"><small>TIEMPO</small><b id="time">30</b></div>
+      <div class="stat" id="lifebox" style="display:none"><small>VIDAS</small><b id="lives">❤❤❤</b></div>
+      <div id="items" style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn small" id="bAdr" title="Adrenalina">⚡×0</button>
+        <button class="btn small" id="bStop" title="Detener el tiempo">⏱×0</button>
+        <button class="btn small" id="bCherry" title="Cereza: +10 puntos">x</button>
+        <button class="btn small" id="bMag" title="Imán: fantasmas más grandes">x</button>
+        <button class="btn small" id="bShield" title="Escudo">x</button>
+        <button class="btn small" id="bDbl" title="Doble moneda">x</button>
+        <button class="btn small" id="bLife" title="Vida extra">❤×0</button>
+      </div>
+      <button class="btn small" id="bPause">Guardar y salir</button>
+    </div>
+    <p class="hint" id="lvinfo" style="display:none;color:var(--yellow)"></p>
+    <p class="hint" id="hint">⚡ bot lento y puntos x2 (8 s) · ⏱ congela 5 s · ❤ vida extra. Compra items en la Tienda.</p>
+    <div class="arenas" id="arenas">
+      <div class="col">
+        <div class="lab"><span id="pname">Tú</span><b id="score">0</b></div>
+        <div class="arena" id="arena"><button class="tgt" id="target" aria-label="Objetivo"></button></div>
+      </div>
+      <div class="col" id="botcol">
+        <div class="lab"><span id="p2name">Bot</span><b id="bot">0</b></div>
+        <div class="arena" id="barena"><div class="tgt" id="btarget"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- RESULTADO -->
+  <section id="result" class="screen">
+    <div class="card center">
+      <h2 id="rtitle">¡Tiempo!</h2>
+      <p id="rmsg" class="muted"></p>
+      <button class="btn" id="bNext" style="display:none">Siguiente nivel</button>
+      <button class="btn" id="bAgain">Jugar otra vez</button>
+      <button class="btn" id="bMenu" style="margin-bottom:0">Menú</button>
+    </div>
+  </section>
+
+  <!-- TIENDA -->
+  <section id="shop" class="screen">
+    <div class="card">
+      <h2>Tienda</h2>
+      <div id="shoplist"></div>
+      <button class="btn" id="bBack3" style="margin-bottom:0">Volver</button>
+    </div>
+  </section>
+
+  <!-- OPCIONES -->
+  <section id="options" class="screen">
+    <div class="card">
+      <h2>Opciones</h2>
+      <label class="row" style="color:var(--text)"><span>Música retro</span><input type="checkbox" id="musicOn"></label>
+      <label class="row" style="color:var(--text)"><span>Efectos de sonido</span><input type="checkbox" id="sfxOn"></label>
+      <label>Volumen: <b id="volTxt" style="color:var(--yellow)">40%</b>
+        <input type="range" id="vol" min="0" max="100" value="40">
+      </label>
+      <button class="btn" id="bClrRec">Borrar récords</button>
+      <button class="btn" id="bClrAll">Reiniciar monedas e items</button>
+      <button class="btn" id="bBack2" style="margin-bottom:0">Volver</button>
+    </div>
+  </section>
+
+  <!-- SALIR -->
+  <section id="bye" class="screen">
+    <div class="card center">
+      <h2>¡GRACIAS POR JUGAR!</h2>
+      <p class="muted">Tu progreso y tus récords quedan guardados en este navegador.</p>
+      <button class="btn" id="bHome" style="margin-bottom:0">Volver al inicio</button>
+    </div>
+  </section>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const GHOSTS = ["#ff0000", "#ffb8ff", "#00ffff", "#ffb852"];
+  const LEVELS = { facil: [800, 0.7], normal: [450, 0.7], dificil: [330, 0.8] };
+  const MODES = { solo: "Clásico", bot: "Vs bot", multi: "2 jugadores", surv: "Supervivencia", att: "Contrarreloj", adv: "Aventura" };
+  const INFO = {
+    solo: "Consigue la mayor puntuación antes de que acabe el tiempo.",
+    bot: "Compite contra el bot en dos pantallas.",
+    multi: "Dos jugadores en el mismo dispositivo.",
+    surv: "3 vidas. Si un fantasma desaparece sin atraparlo, pierdes una. Cada vez van más rápido.",
+    att: "Empiezas con 15 s. Cada fantasma suma tiempo: +1 s, el grande +2 s.",
+    adv: "5 niveles con distinta temática. Llega a la meta de puntos antes de que acabe el tiempo para desbloquear el siguiente."
+  };
+  const ITEMS = {
+    adr: { ico: "⚡", name: "Adrenalina", price: 10, desc: "Bot lento y tus puntos x2 por 8 s", dur: 8, btn: "bAdr", timed: true },
+    stop: { ico: "⏱", name: "Detener el tiempo", price: 15, desc: "5 s de ventaja: congela al bot o el reloj", dur: 5, btn: "bStop", timed: true },
+    life: { ico: "❤", name: "Vida extra", price: 20, desc: "+1 vida en Supervivencia", dur: 0, btn: "bLife", only: "surv" },
+    cherry: { ico: "🍒", name: "Cereza", price: 8, desc: "+10 puntos al instante", dur: 0, btn: "bCherry" },
+    mag: { ico: "🧲", name: "Imán", price: 25, desc: "Fantasmas más grandes por 10 s", dur: 10, btn: "bMag", timed: true },
+    shield: { ico: "🛡", name: "Escudo", price: 20, desc: "Absorbe una pérdida de vida (Supervivencia)", dur: 1, btn: "bShield", only: "surv" },
+    dbl: { ico: "💎", name: "Doble moneda", price: 30, desc: "Duplica las monedas de esta partida", dur: 1, btn: "bDbl" }
+  };
+  const LV = [
+    { name: "Laberinto", ico: "🟡", goal: 30, time: 30, move: 0, wall: "#2121ff", dot: "#ffb8ae", bg: "#000", ghosts: GHOSTS, deco: ["🍒", "🍓", "•"] },
+    { name: "Bosque encantado", ico: "🌲", goal: 45, time: 30, move: 0, wall: "#2ecc71", dot: "#a5d6a7", bg: "#04140a", ghosts: ["#7cfc00", "#2ecc71", "#b5e61d", "#ffd54f"], deco: ["🌲", "🍄", "🌿"] },
+    { name: "Desierto ardiente", ico: "🌵", goal: 60, time: 30, move: 1800, wall: "#ff9800", dot: "#ffcc80", bg: "#1f1204", ghosts: ["#ff7043", "#ffb300", "#ff5252", "#ffd180"], deco: ["🌵", "☀️", "🦂"] },
+    { name: "Océano profundo", ico: "🌊", goal: 75, time: 30, move: 1400, wall: "#00bcd4", dot: "#80deea", bg: "#031a2b", ghosts: ["#00e5ff", "#40c4ff", "#80d8ff", "#7c4dff"], deco: ["🐟", "🐚", "🌊"] },
+    { name: "Espacio exterior", ico: "🪐", goal: 90, time: 30, move: 1100, wall: "#b388ff", dot: "#ffffff", bg: "#0a0618", ghosts: ["#e040fb", "#7c4dff", "#ffffff", "#ffea00"], deco: ["⭐", "🪐", "☄️"] }
+  ];
+  let G = null, timer = null, botTimer = null, lifeTimer = null, dieTimer = null, moveTimer = null, records = [];
+
+  /* ---------- almacenamiento ---------- */
+  const get = (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } };
+  const set = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+  const del = k => { try { localStorage.removeItem(k); } catch (e) {} };
+  let coins = Number(get("atrapa-coins", 0)) || 0;
+  let adv = Number(get("atrapa-adv", 1)) || 1;
+  let inv = Object.assign(Object.fromEntries(Object.keys(ITEMS).map(k => [k, 0])), get("atrapa-inv", {}));
+  const saveWallet = () => { set("atrapa-coins", coins); set("atrapa-inv", inv); };
+  function coinsFor(s) { return s <= 10 ? 3 : s <= 30 ? 7 : s <= 50 ? 15 : s <= 70 ? 70 : s <= 100 ? 150 : 1000; }
+
+  function show(id) {
+    document.querySelectorAll(".screen").forEach(s => s.classList.toggle("on", s.id === id));
+    setTrack(id === "game" ? "game" : "menu");
+    if (id === "menu") $("bCont").disabled = !get("atrapa-save", null);
+    if (id === "shop") renderShop();
+    renderRecords(); refreshItems();
+  }
+
+  /* ---------- tienda e items ---------- */
+  function renderShop() {
+    const box = $("shoplist"); box.innerHTML = "";
+    Object.keys(ITEMS).forEach(k => {
+      const it = ITEMS[k], d = document.createElement("div"); d.className = "item";
+      const ico = document.createElement("span"); ico.className = "ico"; ico.textContent = it.ico;
+      const info = document.createElement("div"); info.className = "info";
+      info.textContent = it.name;
+      const sm = document.createElement("small"); sm.textContent = it.desc + " · Tienes: " + inv[k];
+      info.appendChild(sm);
+      const b = document.createElement("button"); b.className = "btn"; b.textContent = it.price + " 🪙";
+      b.disabled = coins < it.price;
+      b.addEventListener("click", () => { if (coins >= it.price) { coins -= it.price; inv[k]++; saveWallet(); sfx(1318); renderShop(); refreshItems(); } });
+      d.append(ico, info, b); box.appendChild(d);
+    });
+  }
+  function refreshItems() {
+    $("coins").textContent = coins;
+    const on = !!G, ar = $("arenas");
+    ar.classList.toggle("adr", on && G.adr > 0);
+    ar.classList.toggle("stopped", on && G.stop > 0);
+    ar.classList.toggle("nobot", on && G.mode !== "bot" && G.mode !== "multi");
+    $("timebox").style.borderColor = on && G.stop > 0 ? "var(--cyan)" : "";
+    Object.keys(ITEMS).forEach(k => {
+      const b = $(ITEMS[k].btn), active = on && G[k] > 0;
+      b.textContent = ITEMS[k].ico + (active ? (ITEMS[k].timed ? G[k] + "s" : "✓") : "×" + inv[k]);
+      b.disabled = !on || inv[k] < 1 || active || (ITEMS[k].only && G.mode !== ITEMS[k].only) || (k === "life" && G.lives >= 5);
+    });
+    if (on && G.mode === "surv") $("lives").textContent = "❤".repeat(Math.max(0, G.lives));
+  }
+  function useItem(k) {
+    if (!G || G.mode === "multi" || inv[k] < 1) return;
+    const it = ITEMS[k];
+    if (it.only && it.only !== G.mode) return;
+    if (k === "life") { if (G.lives >= 5) return; G.lives++; }
+    else if (k === "cherry") {
+      G.score += 10; $("score").textContent = G.score; fx($("arena"), $("target"), "+10", "#ff4d4d");
+      if (G.mode === "adv" && G.score >= LV[G.lv].goal) { inv[k]--; saveWallet(); return endAdv(true); }
+    }
+    else { if (G[k] > 0) return; G[k] = it.dur; }
+    inv[k]--; saveWallet(); refreshItems(); saveGame();
+  }
+
+  /* ---------- música retro y efectos ---------- */
+  const TRACKS = {
+    menu: { ms: 210, lead: [392,523,659,523,392,523,659,784, 440,587,698,587,440,587,698,880], bass: [98,98,110,110,87,87,98,98] },
+    game: { ms: 125, lead: [440,523,659,523,440,523,659,784, 415,494,622,494,415,494,622,740], bass: [110,110,110,110,104,104,104,104] }
+  };
+  let ac = null, master = null, mtimer = null, step = 0, cur = "menu";
+  let opts = Object.assign({ music: true, sfx: true, vol: 40 }, get("atrapa-opts", {}));
+  function note(f, t, d, type, g) {
+    const o = ac.createOscillator(), e = ac.createGain();
+    o.type = type; o.frequency.value = f;
+    e.gain.setValueAtTime(g, t); e.gain.exponentialRampToValueAtTime(0.001, t + d);
+    o.connect(e); e.connect(master); o.start(t); o.stop(t + d);
+  }
+  function tick() {
+    const T = TRACKS[cur], t = ac.currentTime;
+    note(T.lead[step % T.lead.length], t, T.ms / 1000 * 0.9, "square", 0.22);
+    if (step % 2 === 0) note(T.bass[(step / 2) % T.bass.length], t, T.ms / 1000 * 1.8, "triangle", 0.4);
+    step++;
+  }
+  function applyAudio() {
+    if (!ac) return;
+    master.gain.value = opts.vol / 100 * 0.5;
+    clearInterval(mtimer);
+    if (opts.music) mtimer = setInterval(tick, TRACKS[cur].ms);
+  }
+  function setTrack(n) { if (cur === n) return; cur = n; step = 0; applyAudio(); }
+  function startAudio() {
+    try {
+      if (!ac) { ac = new (window.AudioContext || window.webkitAudioContext)(); master = ac.createGain(); master.connect(ac.destination); }
+      if (ac.state === "suspended") ac.resume();
+      applyAudio();
+    } catch (e) {}
+  }
+  function sfx(f) { if (ac && opts.sfx && opts.vol > 0) note(f, ac.currentTime, 0.08, "square", 0.3); }
+  document.addEventListener("pointerdown", startAudio, { once: true });
+  $("musicOn").checked = opts.music; $("sfxOn").checked = opts.sfx; $("vol").value = opts.vol; $("volTxt").textContent = opts.vol + "%";
+  const saveOpts = () => { set("atrapa-opts", opts); startAudio(); };
+  $("musicOn").addEventListener("change", () => { opts.music = $("musicOn").checked; saveOpts(); });
+  $("sfxOn").addEventListener("change", () => { opts.sfx = $("sfxOn").checked; saveOpts(); });
+  $("vol").addEventListener("input", () => { opts.vol = parseInt($("vol").value, 10); $("volTxt").textContent = opts.vol + "%"; saveOpts(); });
+
+  /* ---------- récords (esquina) ---------- */
+  function renderRecords() {
+    records = get("atrapa-records", []);
+    if (!Array.isArray(records)) records = [];
+    const ol = $("list"); ol.innerHTML = "";
+    if (!records.length) { const li = document.createElement("li"); li.className = "empty"; li.textContent = "Sin récords aún"; ol.appendChild(li); return; }
+    const medals = ["🥇", "🥈", "🥉"];
+    records.slice(0, 5).forEach((r, i) => {
+      const li = document.createElement("li");
+      const pos = document.createElement("span"); pos.className = "pos"; pos.textContent = medals[i] || (i + 1);
+      const who = document.createElement("span"); who.className = "who"; who.textContent = r.name;
+      const pts = document.createElement("span"); pts.className = "pts"; pts.textContent = r.score;
+      li.title = r.date + " · " + (MODES[r.m] || "Clásico");
+      li.append(pos, who, pts); ol.appendChild(li);
+    });
+  }
+  $("recBtn").addEventListener("click", () => $("recs").classList.toggle("open"));
+  if (window.matchMedia("(min-width: 1000px)").matches) $("recs").classList.add("open");
+
+  /* ---------- fantasmas ---------- */
+  function place(a, t) {
+    const w = a.clientWidth, h = a.clientHeight, r = Math.random();
+    const tier = r < 0.2 ? [5, 0.3, 52] : r < 0.55 ? [3, 0.2, 38] : [1, 0.13, 26];
+    const mag = a.id === "arena" && G && G.mag > 0 ? 1.45 : 1;
+    const s = Math.min(w * 0.6, Math.max(tier[2], w * tier[1]) * mag);
+    t.classList.remove("dying");
+    t.style.animation = "none"; void t.offsetWidth; t.style.animation = "";
+    t.dataset.pts = tier[0]; t.textContent = tier[0];
+    t.style.fontSize = s * 0.26 + "px";
+    t.style.width = t.style.height = s + "px";
+    t.style.left = Math.random() * (w - s) + "px";
+    t.style.top = Math.random() * (h - s) + "px";
+    const pal = a.id === "arena" && G && G.mode === "adv" ? LV[G.lv].ghosts : GHOSTS;
+    t.style.background = pal[Math.floor(Math.random() * pal.length)];
+  }
+  function fx(a, t, txt, color) {
+    const s = document.createElement("span"); s.className = "fx"; s.textContent = txt; s.style.color = color;
+    s.style.left = (t.offsetLeft + t.offsetWidth / 2) + "px"; s.style.top = t.offsetTop + "px";
+    a.appendChild(s); setTimeout(() => s.remove(), 700);
+  }
+  function placeMine() {
+    clearTimeout(lifeTimer); clearTimeout(dieTimer);
+    place($("arena"), $("target"));
+    if (G && G.mode === "surv") {
+      const life = Math.max(650, 1800 - G.score * 10);
+      dieTimer = setTimeout(() => $("target").classList.add("dying"), Math.max(0, life - 500));
+      lifeTimer = setTimeout(function expire() {
+        if (!G || G.mode !== "surv") return;
+        if (G.stop > 0) { lifeTimer = setTimeout(expire, 300); return; }
+        if (G.shield > 0) { G.shield--; fx($("arena"), $("target"), "🛡", "#00ffff"); refreshItems(); return placeMine(); }
+        G.lives--; fx($("arena"), $("target"), "💔", "#ff4d4d"); sfx(160); refreshItems();
+        if (G.lives <= 0) return endGame();
+        placeMine();
+      }, life);
+    }
+  }
+
+  /* ---------- partida ---------- */
+  function stopTimers() { clearInterval(timer); clearInterval(moveTimer); clearTimeout(botTimer); clearTimeout(lifeTimer); clearTimeout(dieTimer); }
+  function saveGame() { set("atrapa-save", G); }
+
+  function startGame(st) {
+    G = st; stopTimers();
+    const bot = G.mode === "bot", multi = G.mode === "multi", surv = G.mode === "surv";
+    G.adr = G.adr || 0; G.stop = G.stop || 0; G.mag = G.mag || 0; G.dbl = G.dbl || 0; G.shield = G.shield || 0;
+    if (G.lives == null) G.lives = 3;
+    $("arenas").className = "arenas" + (bot || multi ? " two" : "");
+    $("botcol").style.display = bot || multi ? "block" : "none";
+    $("p2name").textContent = multi ? G.name2 : "Bot";
+    $("btarget").style.pointerEvents = multi ? "auto" : "none";
+    $("btarget").style.cursor = multi ? "pointer" : "default";
+    $("items").style.display = multi ? "none" : "flex";
+    $("hint").style.display = multi ? "none" : "block";
+    Object.keys(ITEMS).forEach(k => { const o = ITEMS[k].only; $(ITEMS[k].btn).style.display = !o || o === G.mode ? "inline-block" : "none"; });
+    $("hint").textContent = "Items de la Tienda: ⚡ puntos x2 y bot lento · ⏱ congela · 🍒 +10 · 🧲 fantasmas grandes · 🛡 escudo · ❤ vida · 💎 doble moneda";
+    $("lifebox").style.display = surv ? "block" : "none";
+    show("game");
+    applyTheme();
+    $("pname").textContent = G.name;
+    $("score").textContent = G.score; $("bot").textContent = G.botScore; $("time").textContent = G.time;
+    placeMine();
+    if (G.mode === "adv" && LV[G.lv].move) moveTimer = setInterval(() => { if (G.stop <= 0) placeMine(); }, LV[G.lv].move);
+    if (bot || multi) place($("barena"), $("btarget"));
+    if (bot) botTimer = setTimeout(botLoop, (LEVELS[G.level] || LEVELS.normal)[0]);
+    timer = setInterval(() => {
+      if (G.adr > 0) G.adr--;
+      if (G.mag > 0) G.mag--;
+      if (G.stop > 0) {
+        G.stop--; refreshItems();
+        if (G.mode !== "bot") { saveGame(); return; }
+      }
+      G.time += surv ? 1 : -1; $("time").textContent = G.time; refreshItems(); saveGame();
+      if (!surv && G.time <= 0) endGame();
+    }, 1000);
+    refreshItems();
+  }
+
+  function applyTheme() {
+    const a = $("arena"), L = G.mode === "adv" ? LV[G.lv] : null;
+    a.querySelectorAll(".deco").forEach(d => d.remove());
+    if (L) { a.style.setProperty("--wall", L.wall); a.style.setProperty("--dot", L.dot); }
+    else { a.style.removeProperty("--wall"); a.style.removeProperty("--dot"); }
+    a.style.backgroundColor = L ? L.bg : "";
+    $("lvinfo").style.display = L ? "block" : "none";
+    if (!L) return;
+    $("lvinfo").textContent = L.ico + " NIVEL " + (G.lv + 1) + "/" + LV.length + " · " + L.name + " · META: " + L.goal + " PUNTOS";
+    for (let i = 0; i < 9; i++) {
+      const d = document.createElement("span"); d.className = "deco"; d.textContent = L.deco[i % L.deco.length];
+      d.style.left = (i * 37 + 9) % 88 + "%"; d.style.top = (i * 53 + 6) % 84 + "%"; d.style.animationDelay = (i * 0.3) + "s";
+      a.appendChild(d);
+    }
+  }
+
+  function endAdv(won) {
+    stopTimers(); del("atrapa-save");
+    const L = LV[G.lv], last = G.lv === LV.length - 1;
+    let earned = 3, title = "¡Se acabó el tiempo!", msg = "Hiciste " + G.score + " de " + L.goal + " puntos.";
+    if (won) {
+      earned = 10 * (G.lv + 1) + Math.max(0, G.time) + (last ? 100 : 0);
+      adv = Math.min(LV.length, Math.max(adv, G.lv + 2)); set("atrapa-adv", adv);
+      title = last ? "¡AVENTURA COMPLETADA!" : "¡Nivel superado!";
+      msg = L.name + ": " + G.score + "/" + L.goal + " puntos.";
+    }
+    earned *= G.dbl ? 2 : 1; coins += earned; saveWallet();
+    $("bNext").style.display = won && !last ? "block" : "none";
+    $("rtitle").textContent = title; $("rmsg").textContent = msg + " +" + earned + " 🪙";
+    show("result");
+  }
+
+  function botLoop() {
+    if (!G || G.mode !== "bot") return;
+    const lv = LEVELS[G.level] || LEVELS.normal;
+    if (G.stop <= 0) {
+      if (Math.random() < lv[1]) {
+        const p = +$("btarget").dataset.pts || 1;
+        G.botScore += p; $("bot").textContent = G.botScore;
+        fx($("barena"), $("btarget"), "+" + p, "#ffb8ff");
+        $("btarget").classList.add("hit");
+        setTimeout(() => $("btarget").classList.remove("hit"), 150);
+      }
+      setTimeout(() => place($("barena"), $("btarget")), 160);
+    }
+    botTimer = setTimeout(botLoop, lv[0] * (G.adr > 0 ? 2.5 : 1));
+  }
+
+  function endGame() {
+    if (G.mode === "adv") return endAdv(false);
+    $("bNext").style.display = "none";
+    stopTimers(); del("atrapa-save");
+    const prevBest = records.length ? records[0].score : 0, fecha = new Date().toLocaleDateString("es");
+    records.push({ name: G.name, score: G.score, secs: G.total, m: G.mode, date: fecha });
+    if (G.mode === "multi") records.push({ name: G.name2, score: G.botScore, secs: G.total, m: "multi", date: fecha });
+    records.sort((a, b) => b.score - a.score);
+    records = records.slice(0, 10); set("atrapa-records", records);
+    let title = "¡Tiempo, " + G.name + "!", msg = "Hiciste " + G.score + " puntos.";
+    if (G.mode === "bot") {
+      title = G.score > G.botScore ? "¡Ganaste, " + G.name + "!" : G.score < G.botScore ? "Ganó el bot" : "¡Empate!";
+      msg = "Tú: " + G.score + " · Bot: " + G.botScore;
+    }
+    if (G.mode === "multi") {
+      title = G.score > G.botScore ? "¡Gana " + G.name + "!" : G.score < G.botScore ? "¡Gana " + G.name2 + "!" : "¡Empate!";
+      msg = G.name + ": " + G.score + " · " + G.name2 + ": " + G.botScore;
+    }
+    if (G.mode === "surv") { title = "¡Game over, " + G.name + "!"; msg = "Puntos: " + G.score + " · Duraste " + G.time + " s"; }
+    if (G.mode !== "multi") {
+      if (G.score > prevBest) msg += " ¡Nuevo récord!";
+      const earned = coinsFor(G.score) * (G.dbl ? 2 : 1); coins += earned; saveWallet();
+      msg += " +" + earned + " 🪙";
+    }
+    $("rtitle").textContent = title; $("rmsg").textContent = msg;
+    show("result");
+  }
+
+  $("target").addEventListener("click", () => {
+    if (!G) return;
+    const p = +$("target").dataset.pts || 1, gain = p * (G.adr > 0 ? 2 : 1);
+    G.score += gain; $("score").textContent = G.score; sfx(988);
+    fx($("arena"), $("target"), "+" + gain, "#ffe600");
+    if (G.mode === "att") { G.time = Math.min(99, G.time + (p === 5 ? 2 : 1)); $("time").textContent = G.time; }
+    if (G.mode === "adv" && G.score >= LV[G.lv].goal) return endAdv(true);
+    placeMine();
+  });
+  $("btarget").addEventListener("click", () => {
+    if (!G || G.mode !== "multi") return;
+    const p = +$("btarget").dataset.pts || 1;
+    G.botScore += p; $("bot").textContent = G.botScore; sfx(988);
+    fx($("barena"), $("btarget"), "+" + p, "#ffb8ff"); place($("barena"), $("btarget"));
+  });
+
+  /* ---------- navegación ---------- */
+  function syncSetup() {
+    const m = $("mode").value;
+    $("lvlwrap").style.display = m === "bot" ? "flex" : "none";
+    $("p2wrap").style.display = m === "multi" ? "flex" : "none";
+    $("secwrap").style.display = m === "surv" || m === "att" || m === "adv" ? "none" : "flex";
+    $("advwrap").style.display = m === "adv" ? "flex" : "none";
+    if (m === "adv") {
+      const sel = $("advlv"), keep = parseInt(sel.value, 10);
+      sel.innerHTML = "";
+      LV.forEach((L, i) => {
+        const o = document.createElement("option"); o.value = i; o.disabled = i >= adv;
+        o.textContent = (i >= adv ? "🔒 " : "") + "Nivel " + (i + 1) + ": " + L.name + " (meta " + L.goal + ")";
+        sel.appendChild(o);
+      });
+      sel.value = Math.min(isNaN(keep) ? adv - 1 : keep, adv - 1);
+    }
+    $("modeinfo").textContent = INFO[m];
+  }
+  $("mode").addEventListener("change", syncSetup);
+  $("bPlay").addEventListener("click", () => { $("player").value = get("atrapa-name", ""); syncSetup(); show("setup"); });
+  $("bCont").addEventListener("click", () => { const s = get("atrapa-save", null); if (s) startGame(s); });
+  $("bShop").addEventListener("click", () => show("shop"));
+  $("bOpt").addEventListener("click", () => show("options"));
+  $("bExit").addEventListener("click", () => { stopTimers(); clearInterval(mtimer); show("bye"); try { window.close(); } catch (e) {} });
+  $("bHome").addEventListener("click", () => { applyAudio(); show("menu"); });
+  ["bBack1", "bBack2", "bBack3", "bMenu"].forEach(id => $(id).addEventListener("click", () => show("menu")));
+  $("bAgain").addEventListener("click", () => { syncSetup(); show("setup"); });
+  $("bNext").addEventListener("click", () => {
+    const i = G.lv + 1, L = LV[i];
+    startGame({ mode: "adv", lv: i, level: "normal", name: G.name, name2: "", total: L.time, time: L.time, score: 0, botScore: 0, lives: 3 });
+  });
+  $("bPause").addEventListener("click", () => { stopTimers(); saveGame(); show("menu"); });
+  Object.keys(ITEMS).forEach(k => $(ITEMS[k].btn).addEventListener("click", () => useItem(k)));
+  $("bClrRec").addEventListener("click", () => { if (confirm("¿Borrar todos los récords?")) { del("atrapa-records"); renderRecords(); } });
+  $("bClrAll").addEventListener("click", () => {
+    if (confirm("¿Reiniciar monedas e items?")) { coins = 0; Object.keys(ITEMS).forEach(k => inv[k] = 0); saveWallet(); refreshItems(); }
+  });
+  $("bGo").addEventListener("click", () => {
+    const name = $("player").value.trim() || "Jugador"; set("atrapa-name", name);
+    const m = $("mode").value;
+    if (m === "adv") {
+      const i = parseInt($("advlv").value, 10) || 0, L = LV[i];
+      startGame({ mode: "adv", lv: i, level: "normal", name, name2: "", total: L.time, time: L.time, score: 0, botScore: 0, lives: 3 });
+      return;
+    }
+    const total = m === "att" ? 15 : m === "surv" ? 0 : parseInt($("secs").value, 10) || 30;
+    startGame({ mode: m, level: $("level").value, name, name2: $("player2").value.trim() || "Jugador 2", total, time: total, score: 0, botScore: 0, lives: 3 });
+  });
+
+  show("menu");
+</script>
+</body>
+</html>
