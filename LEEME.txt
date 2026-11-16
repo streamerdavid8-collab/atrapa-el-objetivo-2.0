@@ -1,0 +1,37 @@
+ATRAPA EL OBJETIVO - Proyecto para crear la app de Android (APK)
+================================================================
+
+Este proyecto envuelve el juego (carpeta www/) en una app de Android con
+Capacitor. El juego funciona SIN INTERNET: todo el codigo, la musica
+(generada por el navegador) y los guardados (monedas, records) son locales.
+Internet solo hace falta UNA vez, en la computadora, para construir la app.
+
+LO QUE NECESITAS EN LA COMPUTADORA
+  1. Node.js (https://nodejs.org)
+  2. Android Studio (https://developer.android.com/studio)
+
+PASOS (abre una terminal dentro de esta carpeta)
+  1. npm install @capacitor/core @capacitor/cli @capacitor/android
+  2. npx cap add android
+  3. npx cap sync android
+  4. npx cap open android      (se abre Android Studio)
+  5. En Android Studio espera a que termine de sincronizar y usa:
+       Build > Build Bundle(s) / APK(s) > Build APK(s)
+  6. Android Studio te avisa donde quedo el archivo app-debug.apk.
+     Pasalo a tu telefono (cable USB, WhatsApp, Drive...) y abrelo para
+     instalarlo. Si Android lo pide, permite "instalar apps de origen
+     desconocido" para esa aplicacion.
+
+PARA PROBARLO DIRECTO EN EL TELEFONO
+  Activa "Depuracion USB" en el telefono, conectalo y en Android Studio
+  pulsa el boton verde "Run".
+
+SI CAMBIAS EL JUEGO
+  Edita www/index.html y repite: npx cap sync android
+
+NOTAS
+  - Este proyecto no se pudo probar compilando en el entorno donde se creo;
+    si Android Studio pide actualizar Gradle o el SDK, acepta las
+    actualizaciones que sugiere.
+  - Para iPhone se necesita una Mac con Xcode (npm install @capacitor/ios,
+    npx cap add ios).
