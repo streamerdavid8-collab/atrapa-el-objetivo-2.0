@@ -10,14 +10,17 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
       - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
-      - name: Instalar y crear Android
+          java-version: '21'
+      - name: Preparar web e instalar Capacitor
         run: |
+          mkdir -p www
+          if [ -f index.html ]; then cp index.html www/; fi
           npm install
+          npm install @capacitor/core @capacitor/cli @capacitor/android
           npx cap add android
           npx cap sync android
       - name: Compilar APK
